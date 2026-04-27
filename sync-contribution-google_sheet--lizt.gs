@@ -11,7 +11,11 @@
  *  A 金流機制 | B 費用類型 | C 捐款來源 | D 定期捐款編號 | E 總金額
  *  F 收到日期 | G 收據開立日期 | H 捐款編號（唯一鍵）| I 交易編號
  *  J 收據編號 | K 捐款狀態 | L 付款工具
- *  M 姓氏 | N 名字 | O 收據抬頭／姓名 | P 捐款徵信名稱 | Q 報稅憑證
+ *  M 收據抬頭／姓名 | N 捐款徵信名稱
+ *  O 聯絡人編號（系統編號）| P 募款頁面
+ *
+ *  收據抬頭填入邏輯：
+ *   若自訂欄位有值則直接使用；否則自動合併聯絡人姓氏＋名字（中間無空格）填入。
  */
 
 // ─── 自訂選單 ─────────────────────────────────────────────────────────────────
@@ -74,13 +78,6 @@ function setupProperties() {
     {
       key:      'CUSTOM_FIELD_CREDIT',
       label:    '捐款徵信名稱 自訂欄位 ID',
-      hint:     '只允許數字，不需要請留空',
-      type:     'number',
-      required: false,
-    },
-    {
-      key:      'CUSTOM_FIELD_TAX_CERT',
-      label:    '報稅憑證 自訂欄位 ID',
       hint:     '只允許數字，不需要請留空',
       type:     'number',
       required: false,
@@ -174,7 +171,6 @@ function getConfig() {
     fieldMap: {
       receipt_name: customKey(props.getProperty('CUSTOM_FIELD_RECEIPT')),
       credit_name:  customKey(props.getProperty('CUSTOM_FIELD_CREDIT')),
-      tax_cert:     customKey(props.getProperty('CUSTOM_FIELD_TAX_CERT')),
     },
   };
 }
@@ -363,11 +359,10 @@ const FIELD_DEFS = [
   { header: '收據編號',      source: 'contribution', apiField: 'receipt_id' },
   { header: '捐款狀態',      source: 'contribution', apiField: 'contribution_status_id', options: true },
   { header: '付款工具',      source: 'contribution', apiField: 'payment_instrument_id',  options: true },
-  { header: '姓氏',          source: 'contact',      apiField: 'last_name' },
-  { header: '名字',          source: 'contact',      apiField: 'first_name' },
-  { header: '收據抬頭／姓名', source: 'custom',      customKey: 'receipt_name' },
+  { header: '收據抬頭／姓名', source: 'custom',      customKey: 'receipt_name', fallback: 'contact_name' },
   { header: '捐款徵信名稱',  source: 'custom',       customKey: 'credit_name' },
-  { header: '報稅憑證',      source: 'custom',       customKey: 'tax_cert' },
+  { header: '聯絡人編號',    source: 'contribution', apiField: 'contact_id' },
+  { header: '募款頁編號',      source: 'contribution', apiField: 'contribution_page_id' },
 ];
 
 /** 從 FIELD_DEFS 產生 Contribution.get 所需的 return.* 參數。 */
@@ -481,7 +476,11 @@ function parseRow(c, fieldMap, optionLabels) {
       row[d.header] = contact[d.apiField] || '';
     } else if (d.source === 'custom') {
       const key = fieldMap[d.customKey];
-      row[d.header] = (key && c[key] !== undefined) ? c[key] : '';
+      let val = (key && c[key] !== undefined && c[key] !== null) ? String(c[key]) : '';
+      if (!val && d.fallback === 'contact_name') {
+        val = (contact['last_name'] || '') + (contact['first_name'] || '');
+      }
+      row[d.header] = val;
     }
   });
   return row;
